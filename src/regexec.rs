@@ -6195,8 +6195,10 @@ pub fn onig_match(
     region: Option<OnigRegion>,
     option: OnigOptionType,
 ) -> (i32, Option<OnigRegion>) {
+    // Box the cached state so each warm call moves only a pointer. Taking
+    // ownership still leaves the cache available to re-entrant calls.
     thread_local! {
-        static CACHED_MSA: RefCell<Option<MatchArg>> = const { RefCell::new(None) };
+        static CACHED_MSA: RefCell<Option<Box<MatchArg>>> = const { RefCell::new(None) };
     }
 
     let mut msa = match CACHED_MSA.with(|c| c.borrow_mut().take()) {
@@ -6204,7 +6206,7 @@ pub fn onig_match(
             cached.reset_full(reg, option, region, at);
             cached
         }
-        None => MatchArg::new(reg, option, region, at),
+        None => Box::new(MatchArg::new(reg, option, region, at)),
     };
 
     if opton_check_validity_of_string(msa.options) && !reg.enc.is_valid_mbc_string(&str_data[..end])
@@ -6892,8 +6894,10 @@ pub(crate) fn search_in_range(
         return search_in_range_inner(reg, str_data, end, start, range, data_range, &mut msa);
     }
 
+    // Box the cached state so each warm call moves only a pointer. Taking
+    // ownership still leaves the cache available to re-entrant calls.
     thread_local! {
-        static CACHED_MSA: RefCell<Option<MatchArg>> = const { RefCell::new(None) };
+        static CACHED_MSA: RefCell<Option<Box<MatchArg>>> = const { RefCell::new(None) };
     }
 
     // Reuse a cached MatchArg to avoid heap allocation per search.
@@ -6903,7 +6907,7 @@ pub(crate) fn search_in_range(
             cached.reset_full(reg, option, region, start);
             cached
         }
-        None => MatchArg::new(reg, option, region, start),
+        None => Box::new(MatchArg::new(reg, option, region, start)),
     };
 
     let result = search_in_range_inner(reg, str_data, end, start, range, data_range, &mut msa);
