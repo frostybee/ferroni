@@ -87,7 +87,14 @@ that directory:
 cd docs
 pnpm install --frozen-lockfile
 pnpm format:check   # pnpm format rewrites
+pnpm verify         # lint, typecheck, format, benchmark claims, and production build
 ```
+
+The home page's run sample is generated from `examples/website_sample.rs`.
+After changing the example, run `pnpm sample:write` from `docs/` and commit
+`docs/app/data/regex-sample.json`. `pnpm sample:check` runs the example again
+and compares its source and actual stdout with the committed artifact. The
+output caption retains the Ferroni version that originally generated it.
 
 CI also runs a `standards drift` lane that executes
 `@sebastian-software/standards check`. Its version is pinned in
@@ -115,8 +122,9 @@ The CLI pin is in `mise.toml`; the two Git theme revisions are in
 `mdtheme.yaml`. These commands require mise, Git, and network access.
 
 The React documentation site uses `ferramenta-family` from `docs/package.json`.
-Keep its Git revision aligned with the Ferramenta theme in `mdtheme.yaml`,
-update the lockfile, and run the site's build. The shared header and footer
+Pin the published npm version and keep the Ferramenta theme in `mdtheme.yaml`
+at that release's source revision. Update the lockfile and run `pnpm verify`
+from `docs/`. The shared header and footer
 exclude this project from sibling links and include sibling descriptions.
 
 ## Running Benchmarks
