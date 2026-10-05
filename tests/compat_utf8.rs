@@ -304,6 +304,33 @@ fn error_utf8_invalid_sequence_in_char_class() {
     );
 }
 
+#[test]
+fn crude_byte_lookahead_with_code_point_sequences() {
+    // C rejects a codepoint continuation when crude-byte fetch-back rewinds
+    // to an escape instead of a digit. The scanner must fail without looping.
+    e(
+        b"[\\x41\\x42\\x{43 44}]",
+        b"",
+        ONIGERR_INVALID_CODE_POINT_VALUE,
+    );
+    e(
+        b"[\\101\\102\\o{103 104}]",
+        b"",
+        ONIGERR_INVALID_CODE_POINT_VALUE,
+    );
+    e(
+        b"[\\xC3\\xA9\\x41\\x{42 43}]",
+        b"",
+        ONIGERR_INVALID_CODE_POINT_VALUE,
+    );
+
+    // With no extra crude byte to read back, the continuation remains valid.
+    x2(b"[\\x41\\x{42 43}]", b"C", 0, 1);
+    x2(b"[\\101\\o{102 103}]", b"C", 0, 1);
+    x2(b"[\\xC3\\xA9\\x{41 42}]", b"B", 0, 1);
+    x2(b"[\\xC3\\xA9\\x{41 42}]", "é".as_bytes(), 0, 2);
+}
+
 // ============================================================================
 // Anchors
 // ============================================================================

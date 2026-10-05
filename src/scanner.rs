@@ -3099,6 +3099,7 @@ mod tests {
     /// their shared patterns.
     #[test]
     fn scanners_sharing_a_pattern_cache_search_on_several_threads() {
+        let _lock = crate::regexec::LIMIT_TEST_LOCK.lock().unwrap();
         let patterns: &[&str] = &[
             r"[a-z]*(?:foo|bar|baz)",
             r"\w*end\b",
@@ -3154,6 +3155,7 @@ mod tests {
     /// captured one, which the benchmarks check against C.
     #[test]
     fn pattern_cache_replays_the_captured_scanner_traces() {
+        let _lock = crate::regexec::LIMIT_TEST_LOCK.lock().unwrap();
         type Expected = Option<(usize, Vec<(usize, usize)>)>;
         let index = |value: &serde_json::Value| value.as_u64().unwrap() as usize;
         for (name, distinct_patterns) in [("cpp", 250), ("java", 115), ("scss", 104)] {

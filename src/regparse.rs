@@ -809,10 +809,12 @@ fn get_next_code_point(
         }
     }
 
+    // C: scan_number_of_base(..., 1, ...). A continuation must consume a
+    // digit, including when prs_cc reads back a token after crude-byte lookahead.
     let r = if base == 16 {
-        scan_hexadecimal_number(p, end, 0, 8, pattern, enc, rcode)
+        scan_hexadecimal_number(p, end, 1, 8, pattern, enc, rcode)
     } else {
-        scan_octal_number(p, end, 0, 11, pattern, enc, rcode)
+        scan_octal_number(p, end, 1, 11, pattern, enc, rcode)
     };
     if r != 0 {
         return r;
