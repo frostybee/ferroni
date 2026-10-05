@@ -4265,42 +4265,66 @@ fn prs_cc(
                 }
             }
             TokenType::CrudeByte => {
-                let byte = tok.code as u8;
-                let mut buf = vec![byte];
+                // C: tok->base_num != 0 : octal or hexadec.
+                let (in_code, in_type) = if !onigenc_is_singlebyte(env.enc) && tok.base_num != 0 {
+                    let mut buf = [0u8; ONIGENC_CODE_TO_MBC_MAXLEN];
+                    let psave = *p;
+                    let base_num = tok.base_num;
 
-                if byte >= 0x80 {
-                    let expected_len = env.enc.mbc_enc_len(&[byte]);
-                    if expected_len > 1 {
-                        // Accumulate consecutive CrudeByte tokens for multi-byte sequence
-                        for _ in 1..expected_len {
-                            r = fetch_token_cc(tok, p, end, pattern, env, state);
+                    // Collect up to one character's worth of crude bytes written
+                    // in the same base.
+                    buf[0] = tok.code as u8;
+                    let mut i = 1;
+                    while i < env.enc.max_enc_len() {
+                        r = fetch_token_cc(tok, p, end, pattern, env, CS_COMPLETE);
+                        if r < 0 {
+                            env.parse_depth -= 1;
+                            return Err(r);
+                        }
+                        if tok.token_type != TokenType::CrudeByte || tok.base_num != base_num {
+                            fetched = true;
+                            break;
+                        }
+                        buf[i] = tok.code as u8;
+                        i += 1;
+                    }
+
+                    if i < env.enc.min_enc_len() {
+                        env.parse_depth -= 1;
+                        return Err(ONIGERR_TOO_SHORT_MULTI_BYTE_STRING);
+                    }
+
+                    let len = env.enc.mbc_enc_len(&buf);
+                    if i < len {
+                        env.parse_depth -= 1;
+                        return Err(ONIGERR_TOO_SHORT_MULTI_BYTE_STRING);
+                    } else if i > len {
+                        // C: fetch back. Rescan from the second byte so the bytes
+                        // after this character are read again as their own tokens.
+                        *p = psave;
+                        for _ in 1..len {
+                            r = fetch_token_cc(tok, p, end, pattern, env, CS_COMPLETE);
                             if r < 0 {
                                 env.parse_depth -= 1;
                                 return Err(r);
                             }
-                            if tok.token_type == TokenType::CrudeByte {
-                                buf.push(tok.code as u8);
-                            } else {
-                                break;
-                            }
                         }
+                        fetched = false;
                     }
 
-                    // Validate the accumulated byte sequence
-                    if !env.enc.is_valid_mbc_string(&buf) {
+                    if !env.enc.is_valid_mbc_string(&buf[..len]) {
                         env.parse_depth -= 1;
-                        if !(0xC2..=0xF4).contains(&byte) {
-                            return Err(ONIGERR_INVALID_CODE_POINT_VALUE);
-                        }
-                        return Err(ONIGERR_TOO_SHORT_MULTI_BYTE_STRING);
+                        return Err(ONIGERR_INVALID_WIDE_CHAR_VALUE);
                     }
-                }
 
-                // For multi-byte sequences, decode to codepoint and use CV_MB
-                let (in_code, in_type) = if buf.len() > 1 {
-                    let code = env.enc.mbc_to_code(&buf, buf.len());
-                    (code, CV_MB)
+                    if len == 1 {
+                        // C: goto crude_single
+                        (buf[0] as OnigCodePoint, CV_SB)
+                    } else {
+                        (env.enc.mbc_to_code(&buf[..len], len), CV_MB)
+                    }
                 } else {
+                    // C: crude_single
                     (tok.code, CV_SB)
                 };
                 let in_raw = true;

@@ -272,6 +272,38 @@ fn error_utf8_invalid_continuation_byte() {
     e(b"\\xC3a", b"", ONIGERR_TOO_SHORT_MULTI_BYTE_STRING);
 }
 
+#[test]
+fn hex_escape_sequences_in_char_class() {
+    // C (prs_cc) collects up to one character of crude bytes, then reads back
+    // the bytes it took too many.
+    x2(b"[\\xC3\\xA9]", "é".as_bytes(), 0, 2);
+    x2(b"[\\303\\251]", "é".as_bytes(), 0, 2);
+    x2(b"[\\xE3\\x81\\x82]", "あ".as_bytes(), 0, 3);
+    x2(b"[\\xF0\\x9F\\x98\\x80]", "😀".as_bytes(), 0, 4);
+    x2(b"[\\x41\\x42]", b"B", 0, 1);
+    x2(b"[\\x41\\x42\\x43\\x44\\x45]", b"E", 0, 1);
+    x2(b"[\\x41\\xC3\\xA9]", "é".as_bytes(), 0, 2);
+    x2(b"[\\xC3\\xA9\\x41]", b"A", 0, 1);
+    x2(b"[\\x41-z]", b"m", 0, 1);
+    n(b"[\\x41-z]", b"-");
+    x2(b"[\\xC3\\xA9-\\xC3\\xBF]", "ÿ".as_bytes(), 0, 2);
+    x2(b"[^\\xC3\\xA9]", "éa".as_bytes(), 2, 3);
+}
+
+#[test]
+fn error_utf8_invalid_sequence_in_char_class() {
+    // As outside a class: an invalid sequence is ONIGERR_INVALID_WIDE_CHAR_VALUE,
+    // and a sequence stops at the first byte written in another base.
+    e(b"[\\xC3\\x41]", b"", ONIGERR_INVALID_WIDE_CHAR_VALUE);
+    e(b"[\\xC3\\251]", b"", ONIGERR_TOO_SHORT_MULTI_BYTE_STRING);
+    e(b"[\\303\\xA9]", b"", ONIGERR_TOO_SHORT_MULTI_BYTE_STRING);
+    e(
+        b"[\\xC3\\251\\xA9]",
+        b"",
+        ONIGERR_TOO_SHORT_MULTI_BYTE_STRING,
+    );
+}
+
 // ============================================================================
 // Anchors
 // ============================================================================
